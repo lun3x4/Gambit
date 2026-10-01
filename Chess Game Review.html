@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Game Review – Chess PGN Analyzer</title>
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #eef1f4;
+  --panel: #fff;
+  --ink: #1c2428;
+  --mute: #66747c;
+  --line: #d6dde2;
+  --acc: #4d4d4d;
+  --lt: #f4f0c2;
+  --dk: #7c9b50;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #322e27;
+    --panel: #28251f;
+    --ink: #e7ecef;
+    --mute: #8c9aa2;
+    --line: #43414000;
+    --acc: #69696900;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14181b;
+  --panel: #34302a;
+  --ink: #e7ecef;
+  --mute: #8c9aa2;
+  --line: #2e373c00;
+  --acc: #6b6b6b00;
+}
+
+*, *:before, *:after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 20px 14px 40px; }
+
+.sr, .box, .pn, #sum, .pl, .acc, .bl, .bh, .tag, table, th, td {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 220px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  font: 14px monospace;
+  resize: vertical;
+  display: block;
+}
+
+button, select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+button.pri { background: var(--acc); color: #fff; border-color: var(--acc); }
+button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+#go { width: 100%; margin-top: 12px; padding: 14px; font-size: 17px; }
+
+/* Progress Bar Updates */
+#progress-wrapper {
+  margin-top: 18px;
+}
+.progress-box {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+}
+#progress-percent {
+  background: #4C4D4A;
+  color: #fff;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  padding: 10px 0;
+}
+#bar {
+  height: 47px;
+  background: #434140;
+}
+#bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #ffffff;
+  transition: width 0.6s ease-out;
+}
+
+#msg { color: var(--mute); font-size: 13px; margin-top: 6px; min-height: 1.4em; text-align: center;}
+
+.grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media(min-width: 900px) { .grid { grid-template-columns: minmax(0, 520px) 1fr; } }
+
+/* Board and Eval Bar Layout */
+.board-layout {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+}
+
+#eval-bar {
+  width: 20px;
+  background: #404040;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+}
+
+#eval-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  height: 50%;
+  transition: height 0.4s ease-out;
+}
+
+/* Layered Board Design for Piece Transitions */
+#board {
+  position: relative;
+  aspect-ratio: 1;
+  flex-grow: 1;
+  min-width: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+#squares, #highlights {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  position: absolute; inset: 0; z-index: 1;
+}
+#highlights { z-index: 2; pointer-events: none; }
+#pieces { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+#badges { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+
+.piece {
+  position: absolute;
+  top: 0; left: 0;
+  width: 12.5%; height: 12.5%;
+  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  display: flex; align-items: center; justify-content: center;
+}
+.piece img { width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15)); }
+
+.sq { min-width: 0; min-height: 0; aspect-ratio: 1; position: relative; display: flex; align-items: center; justify-content: center; }
+.sq.l { background: #f4f0c2; }
+.sq.d { background: #7c9b50; }
+.sq-hl { position: relative; width: 100%; height: 100%; }
+.sq-hl.active:after { content: ""; position: absolute; inset: 0; background: var(--hc, transparent); opacity: .5; z-index: 1; }
+
+.co { position: absolute; z-index: 2; font: 700 min(2.5vw, 11px)/1 system-ui; pointer-events: none; }
+.co.r { top: 3px; left: 3px; }
+.co.f { bottom: 2px; right: 3px; }
+.sq.l .co { color: #7c9b50; }
+.sq.d .co { color: #f4f0c2; }
+
+.bd-pos { position: absolute; width: 12.5%; height: 12.5%; top: 0; left: 0; }
+.bd { position: absolute; top: -5px; right: -5px; width: 42%; max-width: 30px; aspect-ratio: 1; border-radius: 50%; z-index: 5; display: flex; align-items: center; justify-content: center; color: #fff; font: 800 min(3vw, 13px)/1 system-ui; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.ic svg, .bd svg { width: 60%; height: 60%; cursor: default; fill: #fff; }
+
+#bub { position: relative; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: #1c2428; font-weight: 700; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+#bub:after { content: ""; position: absolute; bottom: -7px; left: 28px; width: 12px; height: 12px; background: #fff; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
+.bl { display: flex; align-items: center; gap: 10px; }
+.bl .ev { margin-left: auto; background: #eef1f4; padding: 3px 8px; border-radius: 6px; color: #1c2428; font-size: 14px; }
+.bh { color: var(--mute); font-size: 13px; margin-top: 4px; }
+
+.sw { display: flex; align-items: center; gap: 4px; margin: 12px 0 10px; }
+#strip { position: relative; flex: 1; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+#st { display: flex; align-items: center; gap: 6px; width: max-content; padding: 0 50%; }
+#st .n { color: var(--mute); font-weight: 700; }
+#st button { border: 0px; background: transparent; font: 700 16px system-ui; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; box-shadow: none; outline: none; }
+#st button.on { background: rgba(255, 255, 255, 0.05); color: #222; position: relative; isolation: isolate; overflow: hidden; }
+#st button.on::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; z-index: -1; height: 35%; background: linear-gradient(transparent, rgba(0, 0, 0, 0.001)); pointer-events: none; }
+
+table { width: 100%; border-collapse: collapse; }
+td, th { padding: 5px 6px; text-align: center; border-bottom: 1px solid var(--line); }
+td:first-child, th:first-child { text-align: left; }
+th { font-weight: 600; color: var(--mute); font-size: 13px; }
+
+.pl { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; }
+.pfp { width: 65px; height: 65px; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #e9e3d3; border: 5px solid transparent; }
+.pfp.b { background: #28251f; }
+.pfp.win { border-color: #87bf46; }
+.pfp svg, .pfp img { width: 85%; height: 85%; cursor: default; object-fit: contain; }
+.pn { font-weight: 700; text-align: center; line-height: 1.2; letter-spacing: 0.01em; font-size: 15px; }
+.box { width: fit-content; min-width: 75px; margin: 0 auto; padding: 5px 14px; margin-bottom: 5px; border-radius: 6px; font-weight: 700; letter-spacing: 0.01em; }
+.box.w { background: #fff; color: #34302a; }
+.box.b { background: #34302a; color: #fff; }
+.acc { font-size: 18px; font-weight: 750; }
+#sum { font-weight: 700; font-size: 14px; }
+
+.sr { display: grid; grid-template-columns: 1.3fr 1fr 44px 1fr; align-items: center; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); text-align: center; justify-items: center; }
+.sr > :first-child { text-align: left; justify-self: start; }
+.sr.head { align-items: end; border-bottom: 0; }
+.sr.move-type { border-bottom: 0; padding: 10px 0; }
+.ic { width: 24px; height: 24px; border-radius: 50%; color: #fff; font: 700 14px/1 system-ui; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+.category-excellent { font-size: 11px; }
+.cn { font-size: 20px; font-weight: 800; line-height: 1.1; }
+.scroll { overflow-x: auto; }
+svg { display: block; width: 100%; height: auto; cursor: pointer; }
+.hide { display: none !important; }
+
+#go, #key { background: linear-gradient(180deg, #81b64c 0%, #5d9948 100%); color: #fff; border-radius: 10px; font-weight: 800; text-shadow: 0 1px 0 rgba(0,0,0,.25); margin-bottom: 4px; padding: 12px; }
+#go:disabled, #key:disabled { opacity: .6; cursor: default; }
+
+.ar { padding: 4px 10px; background: transparent; color: var(--ink); border: 0; border-radius: 4px; box-shadow: none; font-size: 22px; font-weight: 400; flex: none; }
+.ar:active { transform: none; box-shadow: none; }
+.move-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; margin-right: 2px; }
+</style>
+</head>
+<body>
+<main>
+
+<section class="card" id="load">
+  <textarea id="paste" placeholder="Paste game here"></textarea>
+  <button class="pri" id="go">Analyze</button>
+
+  <div id="progress-wrapper" class="hide">
+    <div class="progress-box">
+      <div id="progress-percent">0%</div>
+      <div id="bar"><i></i></div>
+    </div>
+  </div>
+  <div id="msg" role="status" aria-live="polite"></div>
+</section>
+
+<div id="result" class="hide">
+  <div class="grid">
+    <div>
+      <div class="card">
+        <div id="bub"></div>
+        
+        <div class="board-layout">
+          <div id="eval-bar"><div id="eval-fill"></div></div>
+          <div id="board">
+            <div id="squares"></div>
+            <div id="highlights"></div>
+            <div id="pieces"></div>
+            <div id="badges"></div>
+          </div>
+        </div>
+
+        <div class="sw">
+          <button class="ar" id="pv" aria-label="Previous move">&lt;</button>
+          <div id="strip"><div id="st"></div></div>
+          <button class="ar" id="nx" aria-label="Next move">&gt;</button>
+        </div>
+        <button id="key" style="width: 100%;">Next</button>
+      </div>
+    </div>
+    
+    <div>
+      <div class="card scroll" style="display: flex; flex-direction: column; gap: 24px;">
+        <div id="graph"></div>
+        <div id="sum"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+const SF_URL = 'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js';
+const THUMB = '<svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
+const BOOK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 5.5h7.2c1.3 0 2.3 1 2.3 2.3v9.4c0 1.3-1 2.3-2.3 2.3H2.5V5.5zm19 0h-7.2c-1.3 0-2.3 1-2.3 2.3v9.4c0 1.3 1 2.3 2.3 2.3h7.2V5.5z" fill="white"/></svg>';
+
+const C = {
+  brilliant:  ['Brilliant', '!!', '#46c697'],
+  great:      ['Great', '!', '#8196b2'],
+  best:       ['Best', '★', '#87bf46'],
+  excellent:  ['Excellent', THUMB, '#87bf46'],
+  good:       ['Good', '✓', '#9cbd6d'],
+  book:       ['Book', BOOK_ICON, '#d9a874'],
+  inaccuracy: ['Inaccuracy', '?!', '#fbd02d'],
+  mistake:    ['Mistake', '?', '#ffab52'],
+  miss:       ['Miss', '✕', '#ff7961'],
+  blunder:    ['Blunder', '??', '#fb4329']
+};
+
+/* Audio and Pieces */
+const snd = {
+  move: new Audio('Chess - Sounds/move-self.mp3'),
+  cap: new Audio('Chess - Sounds/capture.mp3'),
+  chk: new Audio('Chess - Sounds/move-check.mp3'),
+  csl: new Audio('Chess - Sounds/castle.mp3')
+};
+let lastSndCur = -1;
+
+const pc = (color, type) => {
+  return `<img src="Neo - Chess Pieces/${color}${type}.png" alt="${color}${type}" aria-hidden="true" draggable="false">`;
+};
+
+const V = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const $ = s => document.querySelector(s);
+const ep = (cp, col) => { const e = 1 / (1 + Math.exp(-0.00368208 * cp)); return col === 'w' ? e : 1 - e; };
+let sf = null, sfH = null, R = null, cur = 0;
+
+/* ---------- Engines ---------- */
+function initSF() {
+  return new Promise((res, rej) => {
+    try {
+      const w = new Worker(URL.createObjectURL(new Blob([`importScripts("${SF_URL}")`], { type: 'application/javascript' })));
+      const t = setTimeout(() => { w.terminate(); rej(); }, 9000);
+      w.onerror = () => { clearTimeout(t); rej(); };
+      w.onmessage = e => {
+        const l = String(e.data);
+        if (l.includes('uciok')) { w.postMessage('setoption name MultiPV value 2'); w.postMessage('isready'); }
+        if (l.includes('readyok')) { clearTimeout(t); w.onmessage = ev => sfH && sfH(String(ev.data)); res(w); }
+      };
+      w.postMessage('uci');
+    } catch (e) {
+      rej();
+    }
+  });
+}
+
+function evalSF(fen, ms) {
+  return new Promise(res => {
+    const L = {}, side = fen.split(' ')[1] === 'w' ? 1 : -1;
+    sfH = l => {
+      const m = l.match(/multipv (\d+) score (cp|mate) (-?\d+).* pv (\S+)/);
+      if (m) L[m[1]] = { sc: m[2] === 'mate' ? (m[3] > 0 ? 1 : -1) * (10000 - Math.abs(+m[3])) : +m[3], mv: m[4] };
+      if (l.startsWith('bestmove')) res(L[1] ? { cp: L[1].sc * side, best: L[1].mv, second: L[2] ? L[2].sc * side : null } : { cp: 0, best: null, second: null });
+    };
+    sf.postMessage('position fen ' + fen);
+    sf.postMessage('go movetime ' + ms);
+  });
+}
+
+/* Fallback Engine */
+function ev(g) {
+  let s = 0;
+  const b = g.board();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = b[r][c];
+      if (!p) continue;
+      let v = V[p.type];
+      if (p.type === 'n' || p.type === 'b' || p.type === 'p') v += (3.5 - Math.max(Math.abs(r - 3.5), Math.abs(c - 3.5))) * 6;
+      if (p.type === 'p') v += (p.color === 'w' ? 6 - r : r - 1) * 5;
+      s += p.color === 'w' ? v : -v;
+    }
+  }
+  return g.turn() === 'w' ? s : -s;
+}
+
+const ord = (a, b) => ((b.captured ? V[b.captured] * 10 - V[b.piece] : 0) - (a.captured ? V[a.captured] * 10 - V[a.piece] : 0));
+function qs(g, a, b, d) {
+  const st = ev(g);
+  if (d === 0 || st >= b) return st;
+  if (st > a) a = st;
+  for (const m of g.moves({ verbose: true }).filter(m => m.captured).sort(ord)) {
+    g.move(m);
+    const s = -qs(g, -b, -a, d - 1);
+    g.undo();
+    if (s >= b) return s;
+    if (s > a) a = s;
+  }
+  return a;
+}
+
+function nm(g, d, a, b) {
+  if (d === 0) return qs(g, a, b, 3);
+  const ms = g.moves({ verbose: true });
+  if (!ms.length) return g.in_check() ? -99000 - d : 0;
+  ms.sort(ord);
+  for (const m of ms) {
+    g.move(m);
+    const s = -nm(g, d - 1, -b, -a);
+    g.undo();
+    if (s >= b) return s;
+    if (s > a) a = s;
+  }
+  return a;
+}
+
+async function evalFB(fen) {
+  await new Promise(r => setTimeout(r));
+  const g = new Chess(fen), side = g.turn() === 'w' ? 1 : -1, out = [];
+  for (const m of g.moves({ verbose: true })) {
+    g.move(m);
+    out.push({ m, s: -nm(g, 2, -Infinity, Infinity) });
+    g.undo();
+  }
+  out.sort((a, b) => b.s - a.s);
+  const k = s => Math.abs(s) > 90000 ? Math.sign(s) * 10000 : Math.max(-3000, Math.min(3000, s));
+  return { cp: k(out[0].s) * side, best: out[0].m.from + out[0].m.to + (out[0].m.promotion || ''), second: out[1] ? k(out[1].s) * side : null };
+}
+
+/* ---------- Analysis ---------- */
+function isSac(fen, mv) {
+  const g = new Chess(fen), m = g.move({ from: mv.from, to: mv.to, promotion: mv.promotion });
+  if (!m || m.piece === 'p' || m.piece === 'k') return false;
+  const gain = m.captured ? V[m.captured] : 0;
+  const caps = g.moves({ verbose: true }).filter(x => x.to === m.to && x.captured).sort((a, b) => V[a.piece] - V[b.piece]);
+  if (!caps.length) return false;
+  const c = caps[0];
+  g.move(c);
+  const back = g.moves({ verbose: true }).some(x => x.to === m.to && x.captured) ? V[c.piece] : 0;
+  return V[m.piece] - gain - back >= 200;
+}
+
+function san(fen, uci) {
+  if (!uci) return '';
+  const m = new Chess(fen).move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+  return m ? m.san : uci;
+}
+
+function setupPieceStates(fens, hist) {
+  const pStates = [];
+  let current = [];
+  const b0 = new Chess(fens[0]).board();
+  let pid = 0;
+  
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      if (b0[r][f]) {
+         current.push({ id: `p${pid++}`, c: b0[r][f].color, t: b0[r][f].type, r, f });
+      }
+    }
+  }
+  pStates.push(JSON.parse(JSON.stringify(current)));
+
+  for (let i = 0; i < hist.length; i++) {
+     const m = hist[i];
+     const fromR = 8 - parseInt(m.from[1]), fromF = m.from.charCodeAt(0) - 97;
+     const toR = 8 - parseInt(m.to[1]), toF = m.to.charCodeAt(0) - 97;
+     let nextP = JSON.parse(JSON.stringify(current));
+
+     let capR = toR, capF = toF;
+     if (m.flags.includes('e')) { capR = fromR; capF = toF; }
+     if (m.captured || m.flags.includes('e')) {
+        nextP = nextP.filter(p => !(p.r === capR && p.f === capF));
+     }
+
+     const pMoved = nextP.find(p => p.r === fromR && p.f === fromF);
+     if (pMoved) {
+        pMoved.r = toR;
+        pMoved.f = toF;
+        if (m.promotion) pMoved.t = m.promotion;
+     }
+
+     if (m.flags.includes('k') || m.flags.includes('q')) {
+        let rFromF = m.flags.includes('k') ? 7 : 0;
+        let rToF = m.flags.includes('k') ? 5 : 3;
+        const rMoved = nextP.find(p => p.r === fromR && p.f === rFromF && p.t === 'r');
+        if (rMoved) rMoved.f = rToF;
+     }
+     current = nextP;
+     pStates.push(JSON.parse(JSON.stringify(current)));
+  }
+  return pStates;
+}
+
+async function analyze() {
+  const txt = $('#paste').value.trim();
+  if (!txt) return msg('Paste a PGN first.');
+  const g = new Chess();
+  if (!g.load_pgn(txt, { sloppy: true })) return msg('That does not look like a valid PGN.');
+  const hist = g.history({ verbose: true });
+  if (!hist.length) return msg('No moves found in this PGN.');
+  
+  const H = g.header(), ms = 600;
+  $('#go').disabled = true;
+  $('#progress-wrapper').classList.remove('hide');
+  $('#progress-percent').textContent = '0%';
+  $('#bar i').style.width = '0%';
+  msg('');
+
+  if (!sf) { try { sf = await initSF(); } catch (e) { sf = 'fb'; } }
+  const useSF = sf !== 'fb';
+  
+  const rep = new Chess(), fens = [rep.fen()];
+  for (const m of hist) {
+    rep.move({ from: m.from, to: m.to, promotion: m.promotion });
+    fens.push(rep.fen());
+  }
+  
+  const P = [];
+  for (let i = 0; i < fens.length; i++) {
+    const c = new Chess(fens[i]);
+    if (!c.moves().length) {
+      P.push({ cp: c.in_check() ? (c.turn() === 'w' ? -10000 : 10000) : 0, best: null, second: null });
+    } else {
+      P.push(useSF ? await evalSF(fens[i], ms) : await evalFB(fens[i]));
+    }
+    
+    const progressVal = Math.round(((i + 1) / fens.length) * 100);
+    $('#progress-percent').textContent = progressVal + '%';
+    $('#bar i').style.width = progressVal + '%';
+    if (i % 3 === 0) await new Promise(r => setTimeout(r));
+  }
+  
+  const nums = [...(H.ECOUrl || '').matchAll(/(\d+)\./g)].map(x => +x[1]);
+  const bookPlies = Math.min(24, nums.length ? Math.max(...nums) * 2 : (H.ECO ? 10 : 8));
+  const res = [], loss = [];
+  
+  for (let i = 0; i < hist.length; i++) {
+    const m = hist[i], col = m.color, b = P[i], a = P[i + 1], uci = m.from + m.to + (m.promotion || '');
+    const Eb = ep(b.cp, col), Ea = ep(a.cp, col), isBest = uci === b.best, l = isBest ? 0 : Math.max(0, Eb - Ea);
+    loss.push(l);
+    
+    let k = isBest || l <= .0025 ? 'best' : l <= .02 ? 'excellent' : l <= .05 ? 'good' : l <= .10 ? 'inaccuracy' : l <= .20 ? 'mistake' : 'blunder';
+    const bad = ['inaccuracy', 'mistake', 'blunder'].includes(k), sgn = col === 'w' ? 1 : -1;
+    
+    if (bad && ((i > 0 && loss[i - 1] >= .10 && Eb >= .55) || (b.cp * sgn >= 9000 && a.cp * sgn < 9000))) k = 'miss';
+    if (isBest && b.second != null && Eb - ep(b.second, col) >= .15 && Eb < .93) k = 'great';
+    if (l <= .02 && Eb < .9 && Ea >= .45 && isSac(fens[i], m)) k = 'brilliant';
+    if (i < bookPlies && l <= .03) k = 'book';
+    
+    res.push({ k, l, san: m.san, col, uci, best: b.best, bs: b.best && !isBest ? san(fens[i], b.best) : null, from: m.from, to: m.to, cp: a.cp });
+  }
+  
+  const pStates = setupPieceStates(fens, hist);
+  R = { H, hist, fens, P, res, pStates };
+  cur = 0; lastSndCur = -1;
+  render();
+  
+  $('#go').disabled = false;
+  msg('');
+  $('#load').classList.add('hide');
+  $('#paste').value = '';
+}
+
+function msg(t) {
+  $('#msg').textContent = t;
+  if (t && /valid|first|No moves/.test(t)) { $('#go').disabled = false; }
+}
+
+/* ---------- Rendering ---------- */
+function render() {
+  const { H, res, P } = R;
+  $('#result').classList.remove('hide');
+  
+  const cnt = { w: {}, b: {} }, ac = { w: [], b: [] };
+  res.forEach(r => {
+    cnt[r.col][r.k] = (cnt[r.col][r.k] || 0) + 1;
+    ac[r.col].push(Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * r.l * 100) - 3.1669)));
+  });
+  
+  const avn = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const T = [[0, 100], [30, 200], [50, 500], [65, 900], [75, 1300], [85, 1800], [92, 2300], [97, 2800], [100, 3000]];
+  const elo = x => {
+    if (x == null) return '–';
+    for (let i = 1; i < T.length; i++) {
+      if (x <= T[i][0]) {
+        const [a0, e0] = T[i - 1], [a1, e1] = T[i];
+        return Math.round((e0 + (e1 - e0) * (x - a0) / (a1 - a0)) / 50) * 50;
+      }
+    }
+    return 3000;
+  };
+  
+  const A = { w: avn(ac.w), b: avn(ac.b) };
+  const win = H.Result === '1-0' ? 'w' : H.Result === '0-1' ? 'b' : '';
+  const pl = (c, n) => `<div class="pl"><span class="pn">${esc(n)}</span><span class="pfp ${c}${win === c ? ' win' : ''}">${pc(c, 'p')}</span></div>`;
+  const box = (c, v) => `<div class="box acc ${c}">${v}</div>`;
+  
+  $('#sum').innerHTML = `
+    <div class="sr head"><span>Players</span>${pl('w', H.White || 'White')}<span></span>${pl('b', H.Black || 'Black')}</div>
+    <div class="sr"><span>Accuracy</span>${box('w', A.w == null ? '–' : A.w.toFixed(1))}<span></span>${box('b', A.b == null ? '–' : A.b.toFixed(1))}</div>
+    ${Object.keys(C).map(k => `
+      <div class="sr move-type">
+        <span>${C[k][0]}</span>
+        <span class="cn" style="color:${C[k][2]}">${cnt.w[k] || 0}</span>
+        <span class="ic category-${k}" style="background:${C[k][2]}">${C[k][1]}</span>
+        <span class="cn" style="color:${C[k][2]}">${cnt.b[k] || 0}</span>
+      </div>
+    `).join('')}
+    <div class="sr" style="border-bottom:0"><span>Game rating</span>${box('w', elo(A.w))}<span></span>${box('b', elo(A.b))}</div>
+  `;
+  
+  strip();
+  graph();
+  show(0);
+}
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function graph() {
+  const { P, res } = R, n = P.length, W = 600, Hh = 120;
+  const y = cp => Hh - ep(cp, 'w') * Hh;
+  const x = i => i / (n - 1 || 1) * W;
+  
+  const ptsArr = P.map((p, i) => [x(i), y(p.cp)]);
+  let pathD = `M ${ptsArr[0][0]},${ptsArr[0][1]}`;
+  
+  for(let i = 0; i < ptsArr.length - 1; i++) {
+    const p1 = ptsArr[i], p2 = ptsArr[i+1];
+    const mx = (p1[0] + p2[0]) / 2;
+    pathD += ` C ${mx},${p1[1]} ${mx},${p2[1]} ${p2[0]},${p2[1]}`;
+  }
+  
+  const polyD = pathD + ` L ${W},${Hh} L 0,${Hh} Z`;
+  let dots = '';
+  res.forEach((r, i) => {
+    const idx = i + 1;
+    if (['brilliant', 'great', 'best', 'miss', 'blunder'].includes(r.k)) {
+      dots += `<circle cx="${ptsArr[idx][0].toFixed(1)}" cy="${ptsArr[idx][1].toFixed(1)}" r="4.5" fill="${C[r.k][2]}" stroke="#fff" stroke-width="1.5"/>`;
+    }
+  });
+
+  $('#graph').innerHTML = `
+    <svg viewBox="0 0 ${W} ${Hh}" id="gsvg">
+      <rect width="${W}" height="${Hh}" fill="var(--bg)"/>
+      <path d="${polyD}" fill="#e9e9e9" opacity=".9"/>
+      <line x1="0" x2="${W}" y1="${Hh/2}" y2="${Hh/2}" stroke="#4d4d4d" stroke-dasharray="0" stroke-width="2"/>
+      <path d="${pathD}" fill="none" stroke="var(--acc)" stroke-width="2"/>
+      ${dots}
+      <line id="gcur" y1="0" y2="${Hh}" stroke="#ca3431" stroke-width="2"/>
+    </svg>`;
+    
+  $('#gsvg').onclick = e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    show(Math.round((e.clientX - r.left) / r.width * (n - 1)));
+  };
+}
+
+const KEY = ['brilliant', 'great', 'best', 'miss', 'blunder'];
+const DOT_KEYS = new Set(['brilliant', 'great', 'blunder']);
+
+const PH = {
+  brilliant: 'is brilliant', great: 'is a great move', best: 'is the best move',
+  excellent: 'is excellent', good: 'is good', book: 'is a book move',
+  inaccuracy: 'is an inaccuracy', mistake: 'is a mistake', miss: 'is a miss', blunder: 'is a blunder'
+};
+
+const moveDot = category => `<i class="move-dot" style="background:${C[category][2]}"></i>`;
+
+function strip() {
+  $('#st').innerHTML = R.res.map((move, index) =>
+    (index % 2 === 0 ? `<span class="n">${index / 2 + 1}.</span>` : '')
+    + `<button data-i="${index + 1}" style="color:${C[move.k][2]}">${DOT_KEYS.has(move.k) ? moveDot(move.k) : ''}${move.san}</button>`
+  ).join('');
+}
+
+function show(i) {
+  const { hist, res, P, pStates } = R;
+  cur = Math.max(0, Math.min(hist.length, i));
+  const last = cur ? hist[cur - 1] : null, r = cur ? res[cur - 1] : null;
+
+  /* Play Audio Context */
+  if (lastSndCur !== cur) {
+     lastSndCur = cur;
+     if (cur > 0 && last) {
+       let s = snd.move;
+       if (last.san.includes('+') || last.san.includes('#')) s = snd.chk;
+       else if (last.san.includes('O-O')) s = snd.csl;
+       else if (last.captured || last.flags.includes('e')) s = snd.cap;
+       s.currentTime = 0;
+       s.play().catch(() => {});
+     }
+  }
+
+  /* Board Visuals Setup */
+  if (!$('#squares').innerHTML) {
+    let sqHtml = '';
+    for (let rk = 0; rk < 8; rk++) {
+      for (let f = 0; f < 8; f++) {
+        sqHtml += `<div class="sq ${(rk + f) % 2 ? 'd' : 'l'}">${f === 0 ? `<span class="co r">${8 - rk}</span>` : ''}${rk === 7 ? `<span class="co f">${'abcdefgh'[f]}</span>` : ''}</div>`;
+      }
+    }
+    $('#squares').innerHTML = sqHtml;
+  }
+
+  let hlHtml = '', bdHtml = '';
+  for (let rk = 0; rk < 8; rk++) {
+    for (let f = 0; f < 8; f++) {
+       const sq = 'abcdefgh'[f] + (8 - rk);
+       const isHl = last && (sq === last.from || sq === last.to);
+       const badge = (r && sq === last.to) ? `<div class="bd-pos" style="transform:translate(${f*100}%,${rk*100}%)"><span class="bd" style="background:${C[r.k][2]}">${C[r.k][1]}</span></div>` : '';
+       hlHtml += `<div class="sq-hl ${isHl ? 'active' : ''}" style="${isHl && r ? `--hc:${C[r.k][2]}` : ''}"></div>`;
+       if(badge) bdHtml += badge;
+    }
+  }
+  $('#highlights').innerHTML = hlHtml;
+  $('#badges').innerHTML = bdHtml;
+
+  /* Piece Movement logic using pStates mapping */
+  const pCont = $('#pieces');
+  const state = pStates[cur];
+  const activeIds = new Set(state.map(p => p.id));
+  [...pCont.children].forEach(el => {
+     if (!activeIds.has(el.id)) el.remove();
+  });
+  state.forEach(p => {
+     let el = document.getElementById(p.id);
+     if (!el) {
+        el = document.createElement('div');
+        el.id = p.id;
+        el.className = 'piece';
+        el.innerHTML = pc(p.c, p.t);
+        pCont.appendChild(el);
+     } else {
+        const img = el.querySelector('img');
+        if (img && !img.src.includes(`${p.c}${p.t}.png`)) el.innerHTML = pc(p.c, p.t);
+     }
+     el.style.transform = `translate(${p.f * 100}%, ${p.r * 100}%)`;
+  });
+
+  const e = P[cur].cp, evs = Math.abs(e) >= 9000 ? 'M' : (e > 0 ? '+' : '') + (e / 100).toFixed(2);
+  const evalFill = $('#eval-fill');
+  if (evalFill) evalFill.style.height = (ep(P[cur].cp, 'w') * 100).toFixed(1) + '%';
+  
+  $('#bub').innerHTML = r
+    ? `<div class="bl"><span class="ic" style="background:${C[r.k][2]};flex:none;margin:0">${C[r.k][1]}</span><span>${r.san} ${PH[r.k]}.</span><span class="ev">${evs}</span></div>${r.bs ? `<div class="bh">Best was ${r.bs}</div>` : ''}`
+    : `<div class="bl"><span style="color:var(--mute)">Starting position</span><span class="ev">${evs}</span></div>`;
+    
+  document.querySelectorAll('#st button').forEach(b => b.classList.toggle('on', +b.dataset.i === cur));
+  const el = $('#strip'), bt = document.querySelector('#st button.on');
+  if (bt) el.scrollTo({ left: bt.offsetLeft + bt.offsetWidth / 2 - el.clientWidth / 2, behavior: 'smooth' });
+  
+  $('#key').disabled = !res.some((x, j) => j + 1 > cur && KEY.includes(x.k));
+  const gc = $('#gcur');
+  if (gc) {
+    const xx = cur / (P.length - 1 || 1) * 600;
+    gc.setAttribute('x1', xx);
+    gc.setAttribute('x2', xx);
+  }
+}
+
+/* ---------- Events ---------- */
+$('#go').onclick = analyze;
+$('#pv').onclick = () => R && show(cur - 1);
+$('#nx').onclick = () => R && show(cur + 1);
+$('#st').onclick = e => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); };
+$('#key').onclick = () => { if (!R) return; const j = R.res.findIndex((x, k) => k + 1 > cur && KEY.includes(x.k)); if (j >= 0) show(j + 1); };
+document.addEventListener('keydown', e => {
+  if (!R || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight') show(cur + 1);
+  if (e.key === 'ArrowLeft') show(cur - 1);
+});
+</script>
+</body>
+</html>
