@@ -1,0 +1,60 @@
+/* mobile.css – correctifs d'affichage téléphone pour index.html
+   À charger APRÈS le <style> existant :
+   <link rel="stylesheet" href="mobile.css">  */
+
+/* iOS ne doit pas agrandir le texte tout seul ; pas de zoom au double-tap sur les boutons */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, select { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* Encoches / bords arrondis en paysage */
+main {
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+}
+
+/* Cause n°1 des débordements : une colonne "1fr" ne rétrécit jamais sous la largeur
+   de son contenu (barre de coups, graphique, noms longs...) -> la page s'élargit. */
+@media (max-width: 899px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+.grid > div, .card, .board-layout, .sw, #strip { min-width: 0; }
+.sr > * { min-width: 0; }
+.pn { overflow-wrap: anywhere; }
+.bl > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  main { padding: 10px max(8px, env(safe-area-inset-right, 0px)) 28px max(8px, env(safe-area-inset-left, 0px)); }
+  .card { padding: 10px; margin-bottom: 10px; border-radius: 8px; }
+
+  /* 16px minimum : sinon iOS zoome sur le champ au focus */
+  textarea { font-size: 16px; min-height: 160px; padding: 10px; }
+  #go, #key { min-height: 48px; font-size: 16px; }
+  #bar { height: 36px; }
+  #progress-percent { font-size: 16px; padding: 8px 0; }
+
+  /* Plateau + barre d'évaluation */
+  .board-layout { gap: 8px; }
+  #eval-bar { width: 14px; }
+  #bub { font-size: 14px; padding: 8px 10px; }
+  .bl { gap: 8px; }
+  .bl .ev { font-size: 13px; padding: 2px 6px; }
+  .bd { top: -4px; right: -4px; min-width: 15px; font-size: 9px; }
+  .co { font-size: 8px; }
+  .co.r { top: 2px; left: 2px; }
+  .co.f { bottom: 1px; right: 2px; }
+
+  /* Navigation : zones tactiles de 44px */
+  .ar { min-width: 44px; min-height: 44px; padding: 0; font-size: 24px; }
+  #st button { font-size: 15px; padding: 8px 5px; }
+
+  /* Résumé de la partie */
+  .sr { grid-template-columns: 1.1fr 1fr 34px 1fr; gap: 4px; padding: 8px 0; }
+  .sr.move-type { padding: 6px 0; }
+  .pfp { width: 52px; height: 52px; border-width: 4px; }
+  .pn { font-size: 13px; }
+  .box { min-width: 60px; padding: 4px 8px; }
+  .acc { font-size: 16px; }
+  .cn { font-size: 17px; }
+  .ic { width: 22px; height: 22px; font-size: 12px; }
+  .category-excellent { font-size: 10px; }
+}
