@@ -56,17 +56,53 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 14px 40px; }
   margin-bottom: 14px;
 }
 
-textarea {
+.file-picker-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
   width: 100%;
-  min-height: 220px;
+}
+
+.file-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 70px;
   background: var(--bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 10px;
   padding: 14px;
-  font: 14px monospace;
-  resize: vertical;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.file-picker-btn:hover {
+  background: rgba(0, 0, 0, 0.048);
+}
+
+.file-picker-btn svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+
+textarea {
   display: block;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 80px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 0;
+  border-radius: 10px;
+  padding: 14px;
+  font: 14px sans-serif;
+  resize: none;
 }
 
 button, select {
@@ -81,6 +117,26 @@ button, select {
 
 button.pri { background: var(--acc); color: #fff; border-color: var(--acc); }
 button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+#go, #key, #btn-start, #btn-review-another {
+  background: linear-gradient(180deg, #82bb46 0%, #6da843 100%);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
+  margin-bottom: 4px;
+  padding: 12px;
+  border: 1px solid linear-gradient(180deg, #5e8a2e 0%, #8dd35b 100%);
+  cursor: pointer;
+  transition: background 0.18s ease, filter 0.18s ease, transform 0.12s ease;
+}
+#go:hover, #key:hover, #btn-start:hover, #btn-review-another:hover {
+  background: linear-gradient(180deg, #a2e45d 0%, #6da843 100%);
+}
+#go:disabled, #key:disabled, #btn-start:disabled, #btn-review-another:disabled {
+  opacity: .6;
+  cursor: default;
+}
 
 #go { width: 100%; margin-top: 12px; padding: 14px; font-size: 17px; }
 
@@ -128,7 +184,7 @@ button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2p
 }
 
 #eval-bar {
-  width: 20px;
+  width: 26px;
   background: #404040;
   border-radius: 4px;
   position: relative;
@@ -147,8 +203,21 @@ button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2p
   transition: height 0.4s ease-out;
 }
 
+#eval-score {
+  position: absolute;
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+  padding: 4px 1px;
+}
+
 /* Layered Board Design for Piece Transitions */
-#board {
+#board, #preview-board {
   position: relative;
   aspect-ratio: 1;
   flex-grow: 1;
@@ -157,15 +226,16 @@ button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2p
   overflow: hidden;
   user-select: none;
 }
-#squares, #highlights {
+#squares, #highlights, #preview-squares, #preview-highlights {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   grid-template-rows: repeat(8, minmax(0, 1fr));
   position: absolute; inset: 0; z-index: 1;
 }
-#highlights { z-index: 2; pointer-events: none; }
-#pieces { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-#badges { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+#highlights, #preview-highlights { z-index: 2; pointer-events: none; }
+#arrows { position: absolute; inset: 0; z-index: 4; pointer-events: none; width: 100%; height: 100%; }
+#pieces, #preview-pieces { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+#badges { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 
 .piece {
   position: absolute;
@@ -234,9 +304,6 @@ th { font-weight: 600; color: var(--mute); font-size: 13px; }
 svg { display: block; width: 100%; height: auto; cursor: pointer; }
 .hide { display: none !important; }
 
-#go, #key { background: linear-gradient(180deg, #81b64c 0%, #5d9948 100%); color: #fff; border-radius: 10px; font-weight: 800; text-shadow: 0 1px 0 rgba(0,0,0,.25); margin-bottom: 4px; padding: 12px; }
-#go:disabled, #key:disabled { opacity: .6; cursor: default; }
-
 .ar { padding: 4px 10px; background: transparent; color: var(--ink); border: 0; border-radius: 4px; box-shadow: none; font-size: 22px; font-weight: 400; flex: none; }
 .ar:active { transform: none; box-shadow: none; }
 .move-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; margin-right: 2px; }
@@ -246,9 +313,35 @@ svg { display: block; width: 100%; height: auto; cursor: pointer; }
 <body>
 <main>
 
-<section class="card" id="load">
+<!-- Home Screen -->
+<section class="card" id="home" style="text-align: center; padding: 70px 20px;">
+  <h1 style="font-size: 28px; font-weight: 800; margin: 0 0 24px;">Chess Game Review</h1>
+  <button id="btn-start" style="padding: 16px 42px; font-size: 20px;">Review Game</button>
+</section>
+
+<!-- PGN Input & Animated Review Progress Screen -->
+<section class="card hide" id="load">
+  <div class="file-picker-row">
+    <label for="pgn-file" class="file-picker-btn">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      Choose .pgn file
+    </label>
+    <input type="file" id="pgn-file" accept=".pgn,.txt" style="display: none;">
+    <span id="pgn-name" style="font-size: 13px; color: var(--mute); margin-left: 10px;"></span>
+  </div>
+
   <textarea id="paste" placeholder="Paste game here"></textarea>
-  <button class="pri" id="go">Analyze</button>
+
+  <!-- Centered Preview Board -->
+  <div id="preview-board-wrap" style="max-width: 420px; width: 100%; margin: 18px auto 14px;">
+    <div id="preview-board">
+      <div id="preview-squares"></div>
+      <div id="preview-highlights"></div>
+      <div id="preview-pieces"></div>
+    </div>
+  </div>
+
+  <button class="pri" id="go">Start Review</button>
 
   <div id="progress-wrapper" class="hide">
     <div class="progress-box">
@@ -259,6 +352,7 @@ svg { display: block; width: 100%; height: auto; cursor: pointer; }
   <div id="msg" role="status" aria-live="polite"></div>
 </section>
 
+<!-- Review Results Screen -->
 <div id="result" class="hide">
   <div class="grid">
     <div>
@@ -266,10 +360,14 @@ svg { display: block; width: 100%; height: auto; cursor: pointer; }
         <div id="bub"></div>
         
         <div class="board-layout">
-          <div id="eval-bar"><div id="eval-fill"></div></div>
+          <div id="eval-bar">
+            <div id="eval-fill"></div>
+            <div id="eval-score"></div>
+          </div>
           <div id="board">
             <div id="squares"></div>
             <div id="highlights"></div>
+            <svg id="arrows" viewBox="0 0 800 800"></svg>
             <div id="pieces"></div>
             <div id="badges"></div>
           </div>
@@ -296,7 +394,8 @@ svg { display: block; width: 100%; height: auto; cursor: pointer; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
-const SF_URL = 'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js';
+const ENGINE_URL = 'https://cdn.jsdelivr.net/npm/stockfish@15.0.0/src/stockfish.min.js';
+const FALLBACK_SF_URL = 'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js';
 const THUMB = '<svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
 const BOOK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 5.5h7.2c1.3 0 2.3 1 2.3 2.3v9.4c0 1.3-1 2.3-2.3 2.3H2.5V5.5zm19 0h-7.2c-1.3 0-2.3 1-2.3 2.3v9.4c0 1.3 1 2.3 2.3 2.3h7.2V5.5z" fill="white"/></svg>';
 
@@ -332,10 +431,10 @@ const ep = (cp, col) => { const e = 1 / (1 + Math.exp(-0.00368208 * cp)); return
 let sf = null, sfH = null, R = null, cur = 0;
 
 /* ---------- Engines ---------- */
-function initSF() {
+function createWorker(url) {
   return new Promise((res, rej) => {
     try {
-      const w = new Worker(URL.createObjectURL(new Blob([`importScripts("${SF_URL}")`], { type: 'application/javascript' })));
+      const w = new Worker(URL.createObjectURL(new Blob([`importScripts("${url}")`], { type: 'application/javascript' })));
       const t = setTimeout(() => { w.terminate(); rej(); }, 9000);
       w.onerror = () => { clearTimeout(t); rej(); };
       w.onmessage = e => {
@@ -348,6 +447,18 @@ function initSF() {
       rej();
     }
   });
+}
+
+async function initSF() {
+  try {
+    return await createWorker(ENGINE_URL);
+  } catch (e1) {
+    try {
+      return await createWorker(FALLBACK_SF_URL);
+    } catch (e2) {
+      return 'fb';
+    }
+  }
 }
 
 function evalSF(fen, ms) {
@@ -446,12 +557,11 @@ function setupPieceStates(fens, hist) {
   const pStates = [];
   let current = [];
   const b0 = new Chess(fens[0]).board();
-  let pid = 0;
   
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
       if (b0[r][f]) {
-         current.push({ id: `p${pid++}`, c: b0[r][f].color, t: b0[r][f].type, r, f });
+         current.push({ id: `p${r * 8 + f}`, c: b0[r][f].color, t: b0[r][f].type, r, f });
       }
     }
   }
@@ -459,8 +569,8 @@ function setupPieceStates(fens, hist) {
 
   for (let i = 0; i < hist.length; i++) {
      const m = hist[i];
-     const fromR = 8 - parseInt(m.from[1]), fromF = m.from.charCodeAt(0) - 97;
-     const toR = 8 - parseInt(m.to[1]), toF = m.to.charCodeAt(0) - 97;
+     const fromR = 8 - parseInt(m.from[1], 10), fromF = m.from.charCodeAt(0) - 97;
+     const toR = 8 - parseInt(m.to[1], 10), toF = m.to.charCodeAt(0) - 97;
      let nextP = JSON.parse(JSON.stringify(current));
 
      let capR = toR, capF = toF;
@@ -488,6 +598,68 @@ function setupPieceStates(fens, hist) {
   return pStates;
 }
 
+/* ---------- Preview Board Functions ---------- */
+function initPreviewBoard() {
+  let sqHtml = '';
+  for (let rk = 0; rk < 8; rk++) {
+    for (let f = 0; f < 8; f++) {
+      sqHtml += `<div class="sq ${(rk + f) % 2 ? 'd' : 'l'}">${f === 0 ? `<span class="co r">${8 - rk}</span>` : ''}${rk === 7 ? `<span class="co f">${'abcdefgh'[f]}</span>` : ''}</div>`;
+    }
+  }
+  $('#preview-squares').innerHTML = sqHtml;
+  $('#preview-highlights').innerHTML = '';
+  
+  const b0 = new Chess().board();
+  let piecesHtml = '';
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const p = b0[r][f];
+      if (p) {
+        piecesHtml += `<div class="piece" data-pid="p${r * 8 + f}" style="transform:translate(${f * 100}%, ${r * 100}%)">${pc(p.color, p.type)}</div>`;
+      }
+    }
+  }
+  $('#preview-pieces').innerHTML = piecesHtml;
+}
+
+function updatePreviewBoard(step, hist, pStates) {
+  const state = pStates[step];
+  const pCont = $('#preview-pieces');
+  const activeIds = new Set(state.map(p => p.id));
+  [...pCont.children].forEach(el => {
+    if (!activeIds.has(el.dataset.pid)) el.remove();
+  });
+  state.forEach(p => {
+    let el = pCont.querySelector(`[data-pid="${p.id}"]`);
+    if (!el) {
+      el = document.createElement('div');
+      el.dataset.pid = p.id;
+      el.className = 'piece';
+      el.innerHTML = pc(p.c, p.t);
+      pCont.appendChild(el);
+    } else {
+      const img = el.querySelector('img');
+      if (img && !img.src.includes(`${p.c}${p.t}.png`)) el.innerHTML = pc(p.c, p.t);
+    }
+    el.style.transform = `translate(${p.f * 100}%, ${p.r * 100}%)`;
+  });
+
+  if (step > 0 && hist[step - 1]) {
+    const last = hist[step - 1];
+    let hlHtml = '';
+    for (let rk = 0; rk < 8; rk++) {
+      for (let f = 0; f < 8; f++) {
+        const sq = 'abcdefgh'[f] + (8 - rk);
+        const isHl = sq === last.from || sq === last.to;
+        hlHtml += `<div class="sq-hl ${isHl ? 'active' : ''}" style="${isHl ? '--hc:#81b64c' : ''}"></div>`;
+      }
+    }
+    $('#preview-highlights').innerHTML = hlHtml;
+  } else {
+    $('#preview-highlights').innerHTML = '';
+  }
+}
+
 async function analyze() {
   const txt = $('#paste').value.trim();
   if (!txt) return msg('Paste a PGN first.');
@@ -503,7 +675,7 @@ async function analyze() {
   $('#bar i').style.width = '0%';
   msg('');
 
-  if (!sf) { try { sf = await initSF(); } catch (e) { sf = 'fb'; } }
+  if (!sf) { sf = await initSF(); }
   const useSF = sf !== 'fb';
   
   const rep = new Chess(), fens = [rep.fen()];
@@ -511,9 +683,24 @@ async function analyze() {
     rep.move({ from: m.from, to: m.to, promotion: m.promotion });
     fens.push(rep.fen());
   }
+
+  const pStates = setupPieceStates(fens, hist);
+  updatePreviewBoard(0, hist, pStates);
   
   const P = [];
   for (let i = 0; i < fens.length; i++) {
+    // Update preview board with moving pieces and move sounds (without classification badges)
+    updatePreviewBoard(i, hist, pStates);
+    if (i > 0) {
+      const last = hist[i - 1];
+      let s = snd.move;
+      if (last.san.includes('+') || last.san.includes('#')) s = snd.chk;
+      else if (last.san.includes('O-O')) s = snd.csl;
+      else if (last.captured || last.flags.includes('e')) s = snd.cap;
+      s.currentTime = 0;
+      s.play().catch(() => {});
+    }
+
     const c = new Chess(fens[i]);
     if (!c.moves().length) {
       P.push({ cp: c.in_check() ? (c.turn() === 'w' ? -10000 : 10000) : 0, best: null, second: null });
@@ -524,7 +711,7 @@ async function analyze() {
     const progressVal = Math.round(((i + 1) / fens.length) * 100);
     $('#progress-percent').textContent = progressVal + '%';
     $('#bar i').style.width = progressVal + '%';
-    if (i % 3 === 0) await new Promise(r => setTimeout(r));
+    if (i % 2 === 0) await new Promise(r => setTimeout(r));
   }
   
   const nums = [...(H.ECOUrl || '').matchAll(/(\d+)\./g)].map(x => +x[1]);
@@ -547,15 +734,14 @@ async function analyze() {
     res.push({ k, l, san: m.san, col, uci, best: b.best, bs: b.best && !isBest ? san(fens[i], b.best) : null, from: m.from, to: m.to, cp: a.cp });
   }
   
-  const pStates = setupPieceStates(fens, hist);
   R = { H, hist, fens, P, res, pStates };
   cur = 0; lastSndCur = -1;
   render();
   
   $('#go').disabled = false;
+  $('#progress-wrapper').classList.add('hide');
   msg('');
   $('#load').classList.add('hide');
-  $('#paste').value = '';
 }
 
 function msg(t) {
@@ -604,6 +790,7 @@ function render() {
       </div>
     `).join('')}
     <div class="sr" style="border-bottom:0"><span>Game rating</span>${box('w', elo(A.w))}<span></span>${box('b', elo(A.b))}</div>
+    <button id="btn-review-another" style="width: 100%; margin-top: 16px; padding: 13px; font-size: 16px;">Review Another Game</button>
   `;
   
   strip();
@@ -670,6 +857,71 @@ function strip() {
   ).join('');
 }
 
+/* Thick Semi-Transparent Blue Best Move Arrow (L-shape for Knight) */
+function drawBestMoveArrow(fromSq, toSq) {
+  if (!fromSq || !toSq || fromSq === toSq) return '';
+  const f1 = fromSq.charCodeAt(0) - 97, r1 = 8 - parseInt(fromSq[1], 10);
+  const f2 = toSq.charCodeAt(0) - 97, r2 = 8 - parseInt(toSq[1], 10);
+  const x1 = f1 * 100 + 50, y1 = r1 * 100 + 50;
+  const x2 = f2 * 100 + 50, y2 = r2 * 100 + 50;
+  
+  const color = '#7c9b50';
+  const shaftW = 20;
+  const headLen = 36;
+  const headW = 50;
+  
+  const isKnight = (Math.abs(f2 - f1) * Math.abs(r2 - r1) === 2);
+  
+  if (isKnight) {
+    let xc, yc;
+    if (Math.abs(r2 - r1) === 2) {
+      xc = x1;
+      yc = y2;
+    } else {
+      xc = x2;
+      yc = y1;
+    }
+    
+    const dxLast = x2 - xc, dyLast = y2 - yc;
+    const distLast = Math.hypot(dxLast, dyLast) || 1;
+    const ux = dxLast / distLast, uy = dyLast / distLast;
+    const px = -uy, py = ux;
+    
+    const tipX = x2 - ux * 8, tipY = y2 - uy * 8;
+    const headBaseX = tipX - ux * headLen, headBaseY = tipY - uy * headLen;
+    
+    const pLeftX = headBaseX + px * (headW / 2), pLeftY = headBaseY + py * (headW / 2);
+    const pRightX = headBaseX - px * (headW / 2), pRightY = headBaseY - py * (headW / 2);
+    
+    return `
+      <path d="M ${x1} ${y1} L ${xc} ${yc} L ${headBaseX + ux * 6} ${headBaseY + uy * 6}" 
+            fill="none" stroke="${color}" stroke-width="${shaftW}" stroke-linecap="round" stroke-linejoin="round" />
+      <polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${pLeftX.toFixed(1)},${pLeftY.toFixed(1)} ${pRightX.toFixed(1)},${pRightY.toFixed(1)}" 
+               fill="${color}" />
+    `;
+  } else {
+    const dx = x2 - x1, dy = y2 - y1;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const px = -uy, py = ux;
+    
+    const tipX = x2 - ux * 8, tipY = y2 - uy * 8;
+    const headBaseX = tipX - ux * headLen, headBaseY = tipY - uy * headLen;
+    
+    const pLeftX = headBaseX + px * (headW / 2), pLeftY = headBaseY + py * (headW / 2);
+    const pRightX = headBaseX - px * (headW / 2), pRightY = headBaseY - py * (headW / 2);
+    
+    const startX = x1 + ux * 14, startY = y1 + uy * 14;
+    
+    return `
+      <line x1="${startX.toFixed(1)}" y1="${startY.toFixed(1)}" x2="${(headBaseX + ux * 6).toFixed(1)}" y2="${(headBaseY + uy * 6).toFixed(1)}" 
+            stroke="${color}" stroke-width="${shaftW}" stroke-linecap="round" />
+      <polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${pLeftX.toFixed(1)},${pLeftY.toFixed(1)} ${pRightX.toFixed(1)},${pRightY.toFixed(1)}" 
+               fill="${color}" />
+    `;
+  }
+}
+
 function show(i) {
   const { hist, res, P, pStates } = R;
   cur = Math.max(0, Math.min(hist.length, i));
@@ -712,6 +964,14 @@ function show(i) {
   $('#highlights').innerHTML = hlHtml;
   $('#badges').innerHTML = bdHtml;
 
+  /* Arrows Layer (Best Move in Semi-Transparent Blue, L-shape for Knight) */
+  let arrowHtml = '';
+  if (cur > 0 && r && r.best) {
+    const bFrom = r.best.slice(0, 2), bTo = r.best.slice(2, 4);
+    arrowHtml = drawBestMoveArrow(bFrom, bTo);
+  }
+  $('#arrows').innerHTML = arrowHtml;
+
   /* Piece Movement logic using pStates mapping */
   const pCont = $('#pieces');
   const state = pStates[cur];
@@ -738,6 +998,24 @@ function show(i) {
   const evalFill = $('#eval-fill');
   if (evalFill) evalFill.style.height = (ep(P[cur].cp, 'w') * 100).toFixed(1) + '%';
   
+  /* Evaluation text on eval bar (on top in white if black is winning and vice versa) */
+  const evalScore = $('#eval-score');
+  if (evalScore) {
+    const isMate = Math.abs(e) >= 9000;
+    const scoreVal = isMate ? 'M' + Math.abs(10000 - Math.abs(e)) : Math.abs(e / 100).toFixed(1);
+    if (e < 0) {
+      evalScore.style.top = '5px';
+      evalScore.style.bottom = 'auto';
+      evalScore.style.color = '#ffffff';
+      evalScore.textContent = scoreVal;
+    } else {
+      evalScore.style.bottom = '5px';
+      evalScore.style.top = 'auto';
+      evalScore.style.color = '#1c2428';
+      evalScore.textContent = scoreVal;
+    }
+  }
+
   $('#bub').innerHTML = r
     ? `<div class="bl"><span class="ic" style="background:${C[r.k][2]};flex:none;margin:0">${C[r.k][1]}</span><span>${r.san} ${PH[r.k]}.</span><span class="ev">${evs}</span></div>${r.bs ? `<div class="bh">Best was ${r.bs}</div>` : ''}`
     : `<div class="bl"><span style="color:var(--mute)">Starting position</span><span class="ev">${evs}</span></div>`;
@@ -756,13 +1034,41 @@ function show(i) {
 }
 
 /* ---------- Events ---------- */
+$('#btn-start').onclick = () => {
+  $('#home').classList.add('hide');
+  $('#load').classList.remove('hide');
+  initPreviewBoard();
+};
+
+$('#pgn-file').onchange = e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  $('#pgn-name').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    $('#paste').value = ev.target.result;
+  };
+  reader.readAsText(file);
+};
+
 $('#go').onclick = analyze;
 $('#pv').onclick = () => R && show(cur - 1);
 $('#nx').onclick = () => R && show(cur + 1);
 $('#st').onclick = e => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); };
 $('#key').onclick = () => { if (!R) return; const j = R.res.findIndex((x, k) => k + 1 > cur && KEY.includes(x.k)); if (j >= 0) show(j + 1); };
+
+$('#sum').onclick = e => {
+  if (e.target && (e.target.id === 'btn-review-another' || e.target.closest('#btn-review-another'))) {
+    $('#result').classList.add('hide');
+    $('#load').classList.add('hide');
+    $('#home').classList.remove('hide');
+    $('#paste').value = '';
+    $('#pgn-name').textContent = '';
+  }
+};
+
 document.addEventListener('keydown', e => {
-  if (!R || e.target.tagName === 'TEXTAREA') return;
+  if (!R || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowRight') show(cur + 1);
   if (e.key === 'ArrowLeft') show(cur - 1);
 });
